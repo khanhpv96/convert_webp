@@ -6,7 +6,7 @@ from PIL import Image
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, 
                             QWidget, QPushButton, QLabel, QProgressBar, QTextEdit,
                             QSpinBox, QGroupBox, QFileDialog, QCheckBox, QFrame,
-                            QMessageBox, QSplitter)
+                            QMessageBox, QGridLayout)
 from PyQt6.QtCore import QThread, pyqtSignal, Qt, QTimer
 from PyQt6.QtGui import QFont, QPalette, QColor
 
@@ -14,6 +14,7 @@ from PyQt6.QtGui import QFont, QPalette, QColor
 class ImageConverterThread(QThread):
     progress_updated = pyqtSignal(int, int)
     log_updated = pyqtSignal(str)
+    stats_updated = pyqtSignal(int, int)
     conversion_finished = pyqtSignal()
     
     def __init__(self, files, quality, keep_original):
@@ -22,6 +23,8 @@ class ImageConverterThread(QThread):
         self.quality = quality
         self.keep_original = keep_original
         self.processed_count = 0
+        self.total_original_size = 0
+        self.total_converted_size = 0
         
     def run(self):
         total_files = len(self.files)
@@ -32,12 +35,22 @@ class ImageConverterThread(QThread):
                 base_name = input_file.stem
                 output_file = input_file.parent / f"{base_name}.webp"
                 
+                original_size = input_file.stat().st_size
+                self.total_original_size += original_size
+                
                 with Image.open(input_file) as img:
                     if img.mode in ("RGBA", "P"):
                         img = img.convert("RGB")
                     
                     img.save(output_file, "webp", quality=self.quality, optimize=True)
-                    self.log_updated.emit(f"✓ Đã chuyển đổi: {input_file.name} → {output_file.name}")
+                
+                converted_size = output_file.stat().st_size
+                self.total_converted_size += converted_size
+                
+                size_reduction = ((original_size - converted_size) / original_size) * 100
+                
+                self.log_updated.emit(f"✓ {input_file.name} → {output_file.name}")
+                self.log_updated.emit(f"   Gốc: {self.format_size(original_size)} | WebP: {self.format_size(converted_size)} | Giảm: {size_reduction:.1f}%")
                 
                 if not self.keep_original:
                     os.remove(input_file)
@@ -45,11 +58,22 @@ class ImageConverterThread(QThread):
                 
                 self.processed_count += 1
                 self.progress_updated.emit(i + 1, total_files)
+                self.stats_updated.emit(self.total_original_size, self.total_converted_size)
                 
             except Exception as e:
                 self.log_updated.emit(f"❌ Lỗi khi xử lý {file_path}: {str(e)}")
         
         self.conversion_finished.emit()
+    
+    def format_size(self, size_bytes):
+        if size_bytes < 1024:
+            return f"{size_bytes} B"
+        elif size_bytes < 1024 * 1024:
+            return f"{size_bytes / 1024:.1f} KB"
+        elif size_bytes < 1024 * 1024 * 1024:
+            return f"{size_bytes / (1024 * 1024):.1f} MB"
+        else:
+            return f"{size_bytes / (1024 * 1024 * 1024):.1f} GB"
 
 
 class WebPConverterGUI(QMainWindow):
@@ -62,7 +86,7 @@ class WebPConverterGUI(QMainWindow):
         
     def init_ui(self):
         self.setWindowTitle("WebP Image Converter")
-        self.setGeometry(100, 100, 900, 700)
+        self.setGeometry(100, 100, 1000, 800)
         
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -79,6 +103,7 @@ class WebPConverterGUI(QMainWindow):
         self.create_file_selection_group(main_layout)
         self.create_settings_group(main_layout)
         self.create_progress_group(main_layout)
+        self.create_stats_group(main_layout)
         self.create_log_group(main_layout)
         self.create_control_buttons(main_layout)
         
@@ -150,12 +175,40 @@ class WebPConverterGUI(QMainWindow):
         
         parent_layout.addWidget(group)
         
+    def create_stats_group(self, parent_layout):
+        group = QGroupBox("Thống Kê Dung Lượng")
+        layout = QGridLayout(group)
+        
+        self.original_size_label = QLabel("Dung lượng gốc:")
+        self.original_size_value = QLabel("0 B")
+        self.original_size_value.setStyleSheet("font-weight: bold; color: #6c757d;")
+        
+        self.converted_size_label = QLabel("Dung lượng WebP:")
+        self.converted_size_value = QLabel("0 B")
+        self.converted_size_value.setStyleSheet("font-weight: bold; color: #007bff;")
+        
+        self.saved_size_label = QLabel("Đã tiết kiệm:")
+        self.saved_size_value = QLabel("0 B (0%)")
+        self.saved_size_value.setStyleSheet("font-weight: bold; color: #28a745;")
+        
+        layout.addWidget(self.original_size_label, 0, 0)
+        layout.addWidget(self.original_size_value, 0, 1)
+        layout.addWidget(self.converted_size_label, 0, 2)
+        layout.addWidget(self.converted_size_value, 0, 3)
+        layout.addWidget(self.saved_size_label, 1, 0)
+        layout.addWidget(self.saved_size_value, 1, 1, 1, 3)
+        
+        layout.setColumnStretch(1, 1)
+        layout.setColumnStretch(3, 1)
+        
+        parent_layout.addWidget(group)
+        
     def create_log_group(self, parent_layout):
         group = QGroupBox("Nhật Ký Hoạt Động")
         layout = QVBoxLayout(group)
         
         self.log_text = QTextEdit()
-        self.log_text.setMaximumHeight(200)
+        self.log_text.setMaximumHeight(180)
         self.log_text.setReadOnly(True)
         
         clear_log_btn = QPushButton("Xóa Log")
@@ -181,9 +234,13 @@ class WebPConverterGUI(QMainWindow):
         self.clear_memory_btn = QPushButton("Xóa Bộ Nhớ Đệm")
         self.clear_memory_btn.clicked.connect(self.clear_memory)
         
+        self.reset_stats_btn = QPushButton("Reset Thống Kê")
+        self.reset_stats_btn.clicked.connect(self.reset_stats)
+        
         button_layout.addWidget(self.convert_btn)
         button_layout.addWidget(self.stop_btn)
         button_layout.addStretch()
+        button_layout.addWidget(self.reset_stats_btn)
         button_layout.addWidget(self.clear_memory_btn)
         
         parent_layout.addLayout(button_layout)
@@ -251,6 +308,12 @@ class WebPConverterGUI(QMainWindow):
             QCheckBox {
                 font-weight: normal;
             }
+            QLabel {
+                font-weight: normal;
+            }
+            QGridLayout QLabel {
+                padding: 5px;
+            }
         """)
         
     def select_files(self):
@@ -288,12 +351,15 @@ class WebPConverterGUI(QMainWindow):
         if not self.selected_files:
             return
             
+        self.reset_stats()
+        
         quality = self.quality_spinbox.value()
         keep_original = self.keep_original_checkbox.isChecked()
         
         self.converter_thread = ImageConverterThread(self.selected_files, quality, keep_original)
         self.converter_thread.progress_updated.connect(self.update_progress)
         self.converter_thread.log_updated.connect(self.update_log)
+        self.converter_thread.stats_updated.connect(self.update_stats)
         self.converter_thread.conversion_finished.connect(self.conversion_finished)
         
         self.progress_bar.setVisible(True)
@@ -324,6 +390,32 @@ class WebPConverterGUI(QMainWindow):
             self.log_text.verticalScrollBar().maximum()
         )
         
+    def update_stats(self, original_size, converted_size):
+        self.original_size_value.setText(self.format_size(original_size))
+        self.converted_size_value.setText(self.format_size(converted_size))
+        
+        if original_size > 0:
+            saved_size = original_size - converted_size
+            saved_percentage = (saved_size / original_size) * 100
+            self.saved_size_value.setText(f"{self.format_size(saved_size)} ({saved_percentage:.1f}%)")
+        else:
+            self.saved_size_value.setText("0 B (0%)")
+            
+    def reset_stats(self):
+        self.original_size_value.setText("0 B")
+        self.converted_size_value.setText("0 B")
+        self.saved_size_value.setText("0 B (0%)")
+        
+    def format_size(self, size_bytes):
+        if size_bytes < 1024:
+            return f"{size_bytes} B"
+        elif size_bytes < 1024 * 1024:
+            return f"{size_bytes / 1024:.1f} KB"
+        elif size_bytes < 1024 * 1024 * 1024:
+            return f"{size_bytes / (1024 * 1024):.1f} MB"
+        else:
+            return f"{size_bytes / (1024 * 1024 * 1024):.1f} GB"
+        
     def conversion_finished(self):
         self.progress_label.setText("Hoàn thành!")
         self.convert_btn.setEnabled(True)
@@ -332,7 +424,14 @@ class WebPConverterGUI(QMainWindow):
         if self.converter_thread:
             processed = self.converter_thread.processed_count
             total = len(self.selected_files)
-            self.update_log(f"🎉 Hoàn thành! Đã xử lý {processed}/{total} ảnh")
+            total_original = self.converter_thread.total_original_size
+            total_converted = self.converter_thread.total_converted_size
+            
+            if total_original > 0:
+                total_saved = total_original - total_converted
+                total_percentage = (total_saved / total_original) * 100
+                self.update_log(f"🎉 Hoàn thành! Đã xử lý {processed}/{total} ảnh")
+                self.update_log(f"📊 Tổng kết: Tiết kiệm {self.format_size(total_saved)} ({total_percentage:.1f}%)")
             
         QTimer.singleShot(2000, self.clear_memory)
         
