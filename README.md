@@ -1,75 +1,159 @@
-# Image Converter Repository
+# WebP Image Converter & Database Updater
 
-This repository contains two scripts for converting image files to the WebP format, aimed at optimizing image storage and web delivery. The Python script is designed to run on a local machine, while the PHP script is intended for integration with WordPress websites.
+Bộ công cụ hoàn chỉnh để chuyển đổi ảnh sang WebP và cập nhật database WordPress.
 
-## Table of Contents
+![Python](https://img.shields.io/badge/Python-3.8%2B-blue.svg)
+![PyQt6](https://img.shields.io/badge/PyQt6-6.0%2B-green.svg)
+![PHP](https://img.shields.io/badge/PHP-7.4%2B-purple.svg)
+![WordPress](https://img.shields.io/badge/WordPress-5.0%2B-blue.svg)
 
-- [Features](#features)
-- [Requirements](#requirements)
-- [Usage](#usage)
-  - [Python Script (`convert_webp.py`)](#python-script-convert_webppy)
-  - [PHP Script (`convert-to-webp.php`)](#php-script-convert-to-webpphp)
-- [License](#license)
+## Tổng quan
 
-## Features
+Dự án bao gồm 2 công cụ:
+1. **Desktop App** (Python/PyQt6) - Convert ảnh sang WebP với giao diện GUI
+2. **Web Tool** (PHP) - Cập nhật references trong WordPress database
 
-- Converts images (JPG, JPEG, PNG) to WebP format.
-- Preserves transparency for PNG files.
-- Batch processing for all images in a directory (Python script).
-- Deletes the original image after successful conversion (Python script).
-- Designed for seamless WordPress integration (PHP script).
+## Cấu trúc dự án
 
-## Requirements
+```
+webp-converter-toolkit/
+├── main.py                        # Desktop converter app
+├── webp-database-updater.php      # WordPress database updater
+└── README.md
+```
 
-### Python Script (`convert_webp.py`)
-- Python 3.x
-- [Pillow](https://pypi.org/project/Pillow/) library
+## Tool 1: Desktop WebP Converter (main.py)
 
-### PHP Script (`convert-to-webp.php`)
-- PHP 7.0 or higher
-- GD library enabled in your PHP environment
-- WordPress website for deployment
+### Tính năng
+- Giao diện GUI thân thiện với PyQt6
+- Chọn file hoặc thư mục để convert hàng loạt
+- Thống kê dung lượng tiết kiệm real-time
+- Tùy chỉnh chất lượng WebP (1-100%)
+- Tùy chọn giữ lại file gốc
+- Progress bar và log chi tiết
 
-## Usage
+### Cài đặt
+```bash
+pip install PyQt6 Pillow
+python main.py
+```
 
-### Python Script (`convert_webp.py`)
+### Sử dụng
+1. Chạy `python main.py`
+2. Chọn ảnh hoặc thư mục
+3. Điều chỉnh chất lượng (mặc định 85%)
+4. Nhấn "Bắt Đầu Chuyển Đổi"
 
-This script processes all image files within the `uploads` directory on your local machine. It converts eligible images to WebP and deletes the original files upon successful conversion.
+## Tool 2: WordPress Database Updater (webp-database-updater.php)
 
-#### Steps:
-1. Install dependencies:
-   ```bash
-   pip install Pillow
-   ```
-2. Place your images in the `uploads` directory (located in the same folder as the script).
-3. Run the script:
-   ```bash
-   python convert_webp.py
-   ```
-4. Check the console output for the conversion report.
+### Tính năng
+- Quét database trước khi cập nhật
+- Hỗ trợ cả local files và CDN
+- Real-time processing với logs
+- Transaction safety (auto rollback)
+- Giao diện web chuyên nghiệp
 
-#### Configuration:
-- **Compression Quality**: Adjust the `quality` variable in the script (default is 80).
+### Cài đặt
+1. Upload file lên thư mục gốc WordPress
+2. Truy cập: `https://domain.com/webp-database-updater.php`
 
----
+### Sử dụng
+1. **Backup database** trước khi dùng
+2. Nhấn "Quét Database" để xem preview
+3. Nhấn "Bắt Đầu Xử Lý" để cập nhật
 
-### PHP Script (`convert-to-webp.php`)
+## Workflow khuyến nghị
 
-This script is intended for use on a WordPress website. It replaces old image files with their WebP equivalents after conversion.
+### Bước 1: Convert ảnh
+```bash
+# Chạy desktop app
+python main.py
+# Chọn thư mục wp-content/uploads
+# Convert tất cả ảnh sang WebP
+```
 
-#### Deployment and Usage:
-1. Upload the `convert-to-webp.php` script to your WordPress root directory.
-   - File URL: `<your-domain>/convert-to-webp.php`
-2. Call the script by accessing it via your browser or server:
-   ```
-   https://<your-domain>/convert-to-webp.php
-   ```
-3. The script will process images in the WordPress `uploads` folder, convert them to WebP format, and replace the original images with the newly converted ones.
+### Bước 2: Cập nhật database
+```bash
+# Upload webp-database-updater.php lên WordPress root
+# Truy cập qua browser và chạy tool
+```
 
-#### Configuration:
-- Modify the `$quality` parameter in the script (default is 80) to adjust compression quality.
-- Ensure the PHP script has permission to access and modify files in the `uploads` directory.
+### Bước 3: Dọn dẹp
+```bash
+# Xóa file updater sau khi hoàn thành
+rm webp-database-updater.php
+```
+
+## Yêu cầu hệ thống
+
+### Desktop App
+- Python 3.8+
+- PyQt6
+- Pillow (PIL)
+
+### Web Tool  
+- PHP 7.4+
+- WordPress 5.0+
+- MySQL 5.7+
+- Quyền Administrator
+
+## Bảng database được cập nhật
+
+| Bảng | Mô tả |
+|------|-------|
+| `wp_posts` | Nội dung bài viết và GUID |
+| `wp_postmeta` | File đính kèm và metadata |
+| `wp_options` | Theme settings, widgets, logo |
+
+## CDN Support
+
+Tool web tự động xử lý:
+- Local paths: `/wp-content/uploads/image.jpg`
+- CDN URLs: `https://img.domain.com/image.jpg`  
+- Query parameters: `image.jpg?v=123`
+
+## Troubleshooting
+
+### Desktop App
+```bash
+# Lỗi module not found
+pip install PyQt6 Pillow
+
+# Lỗi permission trên Linux/Mac
+chmod +x main.py
+```
+
+### Web Tool
+```php
+// Tăng memory limit nếu cần
+ini_set('memory_limit', '512M');
+ini_set('max_execution_time', 600);
+```
+
+## Lưu ý quan trọng
+
+⚠️ **Luôn backup database** trước khi dùng web tool
+
+⚠️ **Test trên staging** trước khi chạy production
+
+⚠️ **Verify WebP files** tồn tại trước khi update database
+
+## Screenshots
+
+### Desktop App
+- Giao diện modern với thống kê real-time
+- Progress bar và logs chi tiết
+- Tùy chỉnh chất lượng WebP
+
+### Web Tool  
+- Scan database trước khi xử lý
+- Real-time processing logs
+- Professional responsive design
 
 ## License
 
-This project is licensed under the MIT License.
+MIT License - Sử dụng tự do cho mọi mục đích.
+
+---
+
+**Tip**: Chạy desktop app với chất lượng 85% cho kết quả tối ưu giữa chất lượng và dung lượng.
