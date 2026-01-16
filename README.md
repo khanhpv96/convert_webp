@@ -34,7 +34,7 @@ webp-converter-toolkit/
 
 ### Cài đặt
 ```bash
-pip install PyQt6 Pillow
+pip install PyQt6 Pillow send2trash
 python main.py
 ```
 
